@@ -1,0 +1,4 @@
+certs/
+geo*
+*.json
+*.db
