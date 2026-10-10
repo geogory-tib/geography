@@ -169,6 +169,18 @@ func (srv *Server)create_user(username string,password string)(){
 }
 
 
+func (srv *Server)check_if_user_in_convo_db(user_id protocol.SizeT,convo_id protocol.SizeT)(bool){
+	srv.DbMtx.Lock()
+	defer srv.DbMtx.Unlock()
+	found := false
+	err := srv.Db.QueryRow("SELECT EXISTS(SELECT 1 FROM conversation_users WHERE usr_id = ? and id = ?);",user_id,convo_id).Scan(&found)
+	if(err != nil){
+		log.Println(err)
+		return false
+	}
+	return found
+}
+
 func (srv *Server)check_packet_auth_token(token []byte,user_id UserIdT)(error,int){
 	user,found := srv.users.get_user(user_id)
 	if(!found){
@@ -230,6 +242,9 @@ func (srv *Server)handle_send(send *protocol.SendT)(error,int){
 	err,code := srv.check_packet_auth_token(send.Token,UserIdT(send.SenderId))
 	if(err != nil){
 		return err,code
+	}
+	if(!srv.check_if_user_in_convo_db(send.SenderId,send.ConvoId)){
+		return gerrors.ErrUserNotInConvo,gerrors.SrvErrorUserNotInConvo
 	}
 	msg_id,err,code = srv.update_msg_db(send)
 	if(err != nil){
@@ -384,6 +399,9 @@ func (srv *Server)handle_sync(sync *protocol.SyncT,user *User)(error,int){
 	messages,err,code := srv.grab_messages_from_db(sync.MsgId,sync.ConvoId)
 	if(err != nil){
 		return err,code
+	}
+	if(!srv.check_if_user_in_convo_db(sync.UserId,sync.ConvoId)){
+		return gerrors.ErrUserNotInConvo,gerrors.SrvErrorUserNotInConvo
 	}
 	sync_resp := protocol.SyncRespT{
 		ConvoId:sync.ConvoId,
@@ -621,17 +639,65 @@ func (srv *Server)upgrade_conn_to_tls(conn net.Conn)(*tls.Conn,error,int){
 	}
 	return tls_conn,nil,0
 }
-func (srv *Server)handle_conn(conn net.Conn){
-	defer conn.Close()
+
+func (srv *Server)handle_pre_config(conn net.Conn)(bool){
 	conn_state := protocol.Packet{
 		Type: protocol.PacketConnectionEstab,
 		Payload: protocol.ConnectEnstabT{
 			TlsEnabled: srv.Config.EnableTLS,
 			HttpLoginSite:srv.Config.HttpServerAddrAndPort,
-			TlsCert:srv.Tls_Confg.Certificates[0].Leaf.Raw,
 		},
 	}
 	protocol.SendPacket(conn_state,conn)
+	client_ok_packet,err := protocol.ReadPacket(conn)
+	if(client_ok_packet.Type != protocol.PacketConnectionEstabOk){
+		error_packet := protocol.Packet{
+			Type:protocol.PacketError,
+			Payload:protocol.ErrPacketT{
+				ErrorId: gerrors.SrvErrorExpectedConnEstabOkPacket,
+				Msg: gerrors.ErrExpectedConnEstabOkPacket.Error(),
+			},
+		}
+		protocol.SendPacket(error_packet,conn)
+		log.Printf("Dropped Connection '%s' for error '%s'\n",conn.RemoteAddr().String(),gerrors.ErrExpectedConnEstabOkPacket)
+		return false
+	}
+	if(err != nil){
+		log.Printf("Dropped Connection '%s' for net.Conn error '%s'",conn.RemoteAddr().String(),err.Error())
+		return false
+	}
+	ok_packet := client_ok_packet.Payload.(protocol.ConnEnstabOkT)
+	if(ok_packet.RequestTlsCert){
+		if(!srv.Config.EnableTLS){
+			error_packet := protocol.Packet{
+				Type:protocol.PacketError,
+				Payload:protocol.ErrPacketT{
+					ErrorId: gerrors.SrvErrorTlsNotEnabled,
+					Msg: gerrors.ErrTlsNotEnabled.Error(),
+				},
+			}
+			protocol.SendPacket(error_packet,conn)
+			return false
+		}
+		cert_packet := protocol.Packet{
+			Type:protocol.PacketCertResp,
+			Payload:protocol.CertRespT{
+				TlsCert:srv.Tls_Confg.Certificates[0].Leaf.Raw,
+			},
+		}
+		err := protocol.SendPacket(cert_packet,conn)
+		if(err != nil){
+			log.Printf("Dropped Connection '%s' for net.Conn error '%s'",conn.RemoteAddr().String(),err.Error())
+			return false
+		}
+	}
+	return true
+}
+func (srv *Server)handle_conn(conn net.Conn){
+	defer conn.Close()
+	if(!srv.handle_pre_config(conn)){
+		return
+	}
 	if(srv.Config.EnableTLS){
 		new_conn,err,_ := srv.upgrade_conn_to_tls(conn)
 		if(err != nil){

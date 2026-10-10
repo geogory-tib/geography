@@ -28,6 +28,8 @@ const(
 	PacketGetUsernameFromID
 	PacketGetUsernameResp
 	PacketConnectionEstab
+	PacketConnectionEstabOk
+	PacketCertResp
 	PacketError
 	PacketCloseConn
 	__packet_type_end__
@@ -47,6 +49,8 @@ var PacketTypeStr = []string{
 	"PacketGetUsernameFromID",
 	"PacketGetUsernameResp",
 	"PacketConnectionEstab",
+	"PacketConnectionEstabOk",
+	"PacketCertResp",
 	"PacketError",
 	"PacketCloseConn",
 }
@@ -194,6 +198,14 @@ type GetUsernameRespT struct{
 type ConnectEnstabT struct{
 	TlsEnabled bool `json:"tls_enabled"`
 	HttpLoginSite string `json:"http_login_site"`
+}
+
+// client response
+type ConnEnstabOkT struct{
+	RequestTlsCert bool `json:"request_tls_cert"`
+}
+
+type CertRespT struct{
 	TlsCert []byte`json:"tls_cert"`
 }
 
@@ -297,6 +309,14 @@ func ReadPacket(src io.Reader)(ret Packet,ret_err error){
 		case PacketConnectionEstab:
 		{
 			ret.Payload,ret_err = create_packet[ConnectEnstabT](raw_packet.Payload)
+		}
+		case PacketConnectionEstabOk:
+		{
+			ret.Payload,ret_err = create_packet[ConnEnstabOkT](raw_packet.Payload)
+		}
+		case PacketCertResp:
+		{
+			ret.Payload,ret_err = create_packet[CertRespT](raw_packet.Payload)
 		}
 		default:
 		{

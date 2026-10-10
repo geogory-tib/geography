@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"geography/protocol"
-	"io"
 	"log"
 	"net"
 	"os"
@@ -32,7 +31,7 @@ import (
    probably be the first one I make since it
    will be simpiler.
    Until then use this at  your own risk
-   
+
 */
 
 
@@ -161,7 +160,7 @@ func (ui *MessagingUiT)Init(client *ClientT){
 
 	)
 	ui.ConvoList.OnSelected = func(id widget.ListItemID){
-		client.CurrentConvo = protocol.SizeT(id) + 1
+		client.CurrentConvo = client.UserState.Convos[id].ConvoId
 		sync_resq := protocol.Packet{
 			Type:protocol.PacketSync,
 			Payload:protocol.SyncT{
@@ -345,31 +344,47 @@ func (client *ClientT)ReadLoop(){
 }
 
 func (c *ClientT)handle_server_state(state *protocol.ConnectEnstabT){
+	conn_est_ok := protocol.ConnEnstabOkT{}
+	cert_data := []byte{}
+	var err error
 	if(state.TlsEnabled){
-		cert_file,err := os.Open(".geogory.space.crt")
-		cert_data := []byte{}
-		defer cert_file.Close()
+		cert_data,err = os.ReadFile(".localhost.crt")
+		if(errors.Is(err,os.ErrNotExist)){
+			conn_est_ok.RequestTlsCert = true
+		}
+	}
+	protocol.SendPacket(
+		protocol.Packet{
+			Type:protocol.PacketConnectionEstabOk,
+			Payload:conn_est_ok,
+		},
+		c.ServerConn)
+	if(conn_est_ok.RequestTlsCert){
+		cert_packet,err := protocol.ReadPacket(c.ServerConn)
+		if(cert_packet.Type !=  protocol.PacketCertResp){
+			log.Panicf("Expected packet cert resp got '%s'",protocol.PacketTypeStr[cert_packet.Type])
+		}
 		if(err != nil){
-			if(errors.Is(err,os.ErrNotExist)){
-				cert_file,err = os.Create(".geogory.space.crt")
-				cert_file.Write(state.TlsCert)
-				cert_data = state.TlsCert
-			}
-		}else{
-			cert_data,_ = io.ReadAll(cert_file)
+			log.Println(err)
+		}
+		cert_resp := cert_packet.Payload.(protocol.CertRespT)
+		cert_data = cert_resp.TlsCert
+	}
+	if(state.TlsEnabled){
+		cert,err := x509.ParseCertificate(cert_data)
+		if(err != nil){
+			log.Panicln(err)
 		}
 		cert_pool,_ := x509.SystemCertPool()
-		parsed_ca,err := x509.ParseCertificate(cert_data)
-		cert_pool.AddCert(parsed_ca)
+		cert_pool.AddCert(cert)
 		conf := tls.Config{
-			MinVersion: tls.VersionTLS12,
-			ServerName: "geogory.space",
-			RootCAs: cert_pool,
+			ServerName:"localhost",
+			RootCAs:cert_pool,
 		}
 		tls_conn := tls.Client(c.ServerConn,&conf)
 		err = tls_conn.Handshake()
 		if(err != nil){
-			log.Panic(err)
+			log.Panicf("Tls handshake failed with '%s'\n",err.Error)
 		}
 		c.ServerConn = tls_conn
 	}
@@ -378,7 +393,7 @@ func (c *ClientT)handle_server_state(state *protocol.ConnectEnstabT){
 func CreateClient()(*ClientT){
 	client := new(ClientT)
 	var err error
-	client.ServerConn,err = net.Dial("tcp","geogory.space:2020")
+	client.ServerConn,err = net.Dial("tcp","localhost:2020")
 	if(err != nil){
 		log.Println(err)
 	}
