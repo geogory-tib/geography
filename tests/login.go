@@ -13,18 +13,24 @@ func main(){
 	if(err != nil){
 		log.Println(err)
 	}
-	login_packet := protocol.LoginT{}
-	login_packet.Username = "Jane"
-	login_packet.Password = "password1"
-	protocol.SendPacket(protocol.Packet{Type:protocol.PacketLogin,Payload:login_packet,},conn)
-	packet, err := protocol.ReadPacket(conn)
-	if(err != nil){
-		log.Println(err)
+	packet,_ := protocol.ReadPacket(conn)
+	if(packet.Type != protocol.PacketConnectionEstab){
+		panic("Unexpected packet type")
 	}
-	if(packet.Type != protocol.PacketLoginOk){
-		log.Printf("Packet Received was not loginOK packet '%+v' aborting\n", packet) // Output: {Name:Alice Age:30}
-		panic("bye")
+	conn_ok := protocol.Packet{
+		Type:protocol.PacketConnectionEstabOk,
+		Payload:protocol.ConnEnstabOkT{
+		},
 	}
-	login_state := packet.Payload.(protocol.LoginOkT)
-	fmt.Printf("%+v\n",login_state)
+	protocol.SendPacket(conn_ok,conn)
+	// this packet has the wrong type for the payload
+	botched_packet := protocol.Packet{
+		Type:protocol.PacketLogin,
+		Payload:protocol.ConnEnstabOkT{
+			
+		},
+	}
+	protocol.SendPacket(botched_packet,conn)
+	packet,_ = protocol.ReadPacket(conn)
+	fmt.Printf("%+v\n", packet)
 }

@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -229,15 +230,18 @@ type encapsulated_packet struct{
 	Payload json.RawMessage `json:"payload"`
 }
 
-
+// have to create a reader and decoder  so I can have strict field checking
 func create_packet[T any](payload json.RawMessage)(ret T,err error){
-	err = json.Unmarshal(payload,&ret)
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.DisallowUnknownFields()
+	err = decoder.Decode(&ret)
 	return
 }
 
 
 func ReadPacket(src io.Reader)(ret Packet,ret_err error){
 	decoder := json.NewDecoder(src)
+	decoder.DisallowUnknownFields()
 	raw_packet := encapsulated_packet{}
 	err := decoder.Decode(&raw_packet)
 	if(err != nil){

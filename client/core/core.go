@@ -393,7 +393,7 @@ func (c *ClientT)handle_server_state(state *protocol.ConnectEnstabT){
 func CreateClient()(*ClientT){
 	client := new(ClientT)
 	var err error
-	client.ServerConn,err = net.Dial("tcp","localhost:2020")
+	client.ServerConn,err = net.Dial("tcp","localhost:6969")
 	if(err != nil){
 		log.Println(err)
 	}
