@@ -58,7 +58,7 @@ func (c *ClientT)SendMessage(payload string,convoId protocol.SizeT){
 			ConvoId:convoId,
 			Payload:[]byte(payload),
 			Token: c.UserState.Token,
-			Time:time.Now().Format(time.DateTime),
+			Time:time.Now().Unix(),
 		},
 	}
 	protocol.SendPacket(send_packet,c.ServerConn)
@@ -272,7 +272,8 @@ func (c *ClientT)handle_sync_resp(packet *protocol.SyncRespT){
 		if(!ok){
 			name = fmt.Sprint("UserId: %d",msg.SenderID)
 		}
-		frmt_str := fmt.Sprintf("%s:\n\n%s\n\n%s\n",name,string(msg.MsgPayload),msg.Time)
+		str_time := time.Unix(msg.Time,0).Format(time.DateTime)
+		frmt_str := fmt.Sprintf("%s:\n\n%s\n\n%s\n",name,string(msg.MsgPayload),str_time)
 		builder.WriteString(frmt_str)
 	}
 	fyne.Do(func(){

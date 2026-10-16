@@ -121,7 +121,7 @@ type SendT struct{
 	ConvoId  SizeT `json:"convo_id"`
 	Payload []byte `json:"msg_payload"`
 	Token []byte   `json:"auth_token"`
-	Time string    `json:"sent_time"`
+	Time int64   `json:"sent_time"`
 }
 
 
@@ -166,7 +166,7 @@ type MsgT struct{
 	SenderID SizeT `json:"sender_id"`
 	ConvoID SizeT  `json:"convo_id"`
 	MsgPayload []byte `json:"msg_payload"`
-	Time string `json:"msg_time"`
+	Time int64 `json:"msg_time"`
 }
 
 type SyncRespT struct{

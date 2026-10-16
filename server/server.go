@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/tls"
 	"database/sql"
+	"errors"
 	"strings"
 
 	gerrors "geography/errors"
@@ -124,7 +125,7 @@ func (srv *Server)InitServer(){
                  sender_id INTEGER,
                  convo_id INTEGER,
                  payload BLOB,
-                 time STRING,
+                 time INTEGER,
                  PRIMARY KEY(msg_id,convo_id));`)
 	if(err != nil){
 		log.Panic(err)
@@ -140,11 +141,61 @@ func (srv *Server)InitServer(){
 	srv.users.active = make(map[UserIdT]*User,100)
 }
 
+func (srv *Server)delete_message_by_id_db(convo_id protocol.SizeT,msg_id protocol.SizeT)(error,int){
+	srv.DbMtx.Lock()
+	defer srv.DbMtx.Unlock()
+	_,err := srv.Db.Exec("DELETE FROM messages WHERE convo_id = ? AND msg_id = ?;")
+	if(err != nil){
+		if(errors.Is(err,sql.ErrNoRows)){
+			return gerrors.ErrMessageNotFound,gerrors.SrvErrorMessageNotFound
+		}
+	}
+	log.Printf("Message in conversation %d with id %d deleted\n",convo_id,msg_id)
+	return nil,0
+}
 
+func (srv *Server)clean_up_old_messages(){
+	type message_ids struct{
+		msg_id protocol.SizeT
+		convo_id protocol.SizeT
+	}
+	if(srv.Config.DeleteMessagesAfterXMin == 0){
+		return
+	}
+	for{
+		time.Sleep(time.Minute * time.Duration(srv.Config.DeleteMessagesAfterXMin))
+		prev_time := time.Now().Add(-time.Minute * time.Duration(srv.Config.DeleteMessagesAfterXMin))
+		srv.DbMtx.Lock()
+		id_rows,err := srv.Db.Query("SELECT msg_id,convo_id FROM messages WHERE time <= ?;",prev_time.Unix())
+		if(err != nil){
+			log.Printf("ClEAN UP ERORR! failed to query rows for message cleanup failed with error '%s'\n",err.Error())
+			continue
+		}
+		
+		msg_ids := []message_ids{}
+		for id_rows.Next(){
+			var ids message_ids
+			err = id_rows.Scan(&ids.msg_id,&ids.convo_id)
+			if(err != nil){
+				log.Printf("CLEAN UP ERROR!: Failed to parse MSGID from sql.Row failed with error '%s'\n",err.Error())
+				break
+			}
+			msg_ids = append(msg_ids,ids)
+		}
+		srv.DbMtx.Unlock()
+		for _,ids := range msg_ids{
+			err,_ = srv.delete_message_by_id_db(ids.convo_id,ids.msg_id)
+			if(err != nil){
+				log.Println("CLEAN UP ERROR! failed to delete message with error '%s'\n",err.Error())
+			}
+		}
+	}
+}
 
 
 func (srv *Server)ServerMain(){
 	defer srv.listener.Close()
+	go srv.clean_up_old_messages()
 	for{
 		conn, err := srv.listener.Accept()
 		if(err != nil){
@@ -195,7 +246,7 @@ func (srv *Server)check_packet_auth_token(token []byte,user_id UserIdT)(error,in
 func (srv *Server)update_msg_db(send *protocol.SendT)(int,error,int){
 	srv.DbMtx.Lock()
 	defer srv.DbMtx.Unlock()
-	msg := protocol.MsgT{SenderID:send.SenderId,ConvoID:send.ConvoId,MsgPayload:send.Payload}
+	msg := protocol.MsgT{SenderID:send.SenderId,ConvoID:send.ConvoId,MsgPayload:send.Payload,Time:send.Time}
 	err := srv.Db.QueryRow("SELECT next_message_id FROM conversations WHERE id = ?;",send.ConvoId).Scan(&msg.MsgId)
 	if(err != nil && err == sql.ErrNoRows){
 		return 0,gerrors.ErrInvaildConvoId,gerrors.SrvErrorInvaildConvoId

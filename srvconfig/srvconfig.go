@@ -42,6 +42,8 @@ type ConfigT struct{
 	TlsKeyPath string `json:"tls_key_path"`
 	DropConnectionAfterXLogins int `json:"drop_connection_after_x_failed_logins"`
 	LogFilePath string `json:"LogFilePath"`
+	DeleteMessagesAfterXMin int `json:"delete_messages_after_x_min"` // Leave 0 for never
+	DeleteConvosUnActiveConvosAfterXMin int `json:"delete_unactive_convos_after_x_min"` //Leave 0 for never
 }
 
 var DefaultConfig = ConfigT{
