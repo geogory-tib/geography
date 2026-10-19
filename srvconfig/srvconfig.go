@@ -36,7 +36,8 @@ type ConfigT struct{
 	ServerAdressAndPort string `json:"addr_and_port"`
 	AllowAccountCreationFromFailedLogin bool `json:"allow_account_creation_from_failed_login"`
 	EnableHttpSignUpServer  bool `json:"enable_http_signup_server"`
-	HttpServerAddrAndPort string
+	HttpServerAddrAndPort string `json:"http_server_addr"`
+	HttpLoginDir string `json:"http_login_dir"`
 	EnableTLS bool `json:"enable_tls"`
 	TlsCertPath string `json:"tls_cert_path"`
 	TlsKeyPath string `json:"tls_key_path"`
@@ -44,6 +45,10 @@ type ConfigT struct{
 	LogFilePath string `json:"LogFilePath"`
 	DeleteMessagesAfterXMin int `json:"delete_messages_after_x_min"` // Leave 0 for never
 	DeleteConvosUnActiveConvosAfterXMin int `json:"delete_unactive_convos_after_x_min"` //Leave 0 for never
+	AdminConsoleAddr string `json:"admin_console_addr"`
+	AdminConsoleTls string `json:"enable_tls_for_admin_console"` // If admins are required to login via SSH to
+	//to do server configuration it can be done locally without TLS
+	
 }
 
 var DefaultConfig = ConfigT{

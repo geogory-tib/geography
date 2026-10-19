@@ -33,6 +33,11 @@ const(
 	PacketCertResp
 	PacketError
 	PacketCloseConn
+	PacketAdminLoginOk
+	PacketAdminDeleteUsers
+	PacketAdminDeleteMsgs
+	PacketAdminDeleteConvos
+	AdminDeleteAdmins
 	__packet_type_end__
 )
 
@@ -210,7 +215,38 @@ type CertRespT struct{
 	TlsCert []byte`json:"tls_cert"`
 }
 
-//TODO -- HANDLE ERRORS
+type AdminLoginOkT struct{
+	AuthToken []byte `json:"auth_token"`
+	PermLevel SizeT `json:"perm_level"`
+	AdminID SizeT `json:"admin_id"`
+}
+
+type AdminDeleteUsersT struct{
+	AdminID SizeT 
+	Token []byte
+	UserIds []SizeT
+}
+
+type AdminDeleteMsgsT struct{
+	AdminID SizeT
+	Token []byte
+	MsgIds []SizeT
+	ConvoIds []SizeT
+}
+
+type AdminDeleteConvosT struct{
+	AdminID SizeT
+	Token []byte
+	ConvoIds []SizeT
+}
+
+type AdminDeleteAdminsT struct{
+	AdminID SizeT
+	Token []byte
+	AdminIds []SizeT
+}
+//TODO -- HANDLE ADMIN CONSOLE
+
 func SendPacket(p Packet, out io.Writer)(error){
 	packet_json := json.RawMessage{}
 	packet_json,_  = json.Marshal(p.Payload)

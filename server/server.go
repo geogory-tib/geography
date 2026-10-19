@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	gerrors "geography/errors"
+	"geography/loginserver"
 	"geography/protocol"
 	"geography/srvconfig"
 	"log"
@@ -67,6 +68,7 @@ type Server struct{
 	Tls_Confg *tls.Config
 	Config *srvconfig.ConfigT
 	log_file os.File
+	login_server *loginserver.LoginServerT
 }
 
 func (srv *Server)configure_tls()(error){
@@ -138,6 +140,10 @@ func (srv *Server)InitServer(){
 	if(err != nil){
 		log.Panic(err)
 	}
+	if(srv.Config.EnableHttpSignUpServer){
+		srv.login_server = new(loginserver.LoginServerT)
+		go srv.login_server.Init(srv.Config,srv.Db,&srv.DbMtx)
+	}
 	srv.users.active = make(map[UserIdT]*User,100)
 }
 
@@ -196,6 +202,7 @@ func (srv *Server)clean_up_old_messages(){
 func (srv *Server)ServerMain(){
 	defer srv.listener.Close()
 	go srv.clean_up_old_messages()
+
 	for{
 		conn, err := srv.listener.Accept()
 		if(err != nil){
@@ -586,6 +593,8 @@ func (srv *Server)get_user_session(conn net.Conn,user *User)(bool,error,int){
 		user.username = login.Username
 		srv.users.add_user(user)
 		return true,nil,0
+	}else if(err == sql.ErrNoRows){
+		return false,gerrors.ErrUsernameNotFound,gerrors.SrvErrorUsernameNotFound
 	}
 	err = bcrypt.CompareHashAndPassword(password_blob,[]byte(login.Password))
 	if(err != nil){

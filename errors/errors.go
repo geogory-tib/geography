@@ -20,6 +20,7 @@ const (
 	SrvErrorTlsNotEnabled
 	SrvErrorUserNotInConvo
 	SrvErrorMessageNotFound
+	SrvErrorUsernameNotFound
 )
 
 
@@ -35,4 +36,5 @@ var ErrRejecDueToTooManyFailedLogins error = errors.New("Connection Dropped Due 
 var ErrUnknownUsername error
 var ErrUserNotInConvo error = errors.New("User Id not in Conversation")
 var ErrTlsNotEnabled error = errors.New("Server has TLS disabled, cert cannot be requested")
-var ErrMessageNotFound error = errors.New("Requested message was nnot found")
+var ErrMessageNotFound error = errors.New("Requested message was not found")
+var ErrUsernameNotFound error = errors.New("Username not found")
