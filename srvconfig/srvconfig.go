@@ -38,6 +38,8 @@ type ConfigT struct{
 	EnableHttpSignUpServer  bool `json:"enable_http_signup_server"`
 	HttpServerAddrAndPort string `json:"http_server_addr"`
 	HttpLoginDir string `json:"http_login_dir"`
+	HttpLoginCode string `json:"http_login_code"`
+	HttpEnableProofOfWork bool `json:"http_enable_pow"`
 	EnableTLS bool `json:"enable_tls"`
 	TlsCertPath string `json:"tls_cert_path"`
 	TlsKeyPath string `json:"tls_key_path"`
